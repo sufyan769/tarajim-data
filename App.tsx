@@ -1,169 +1,78 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  InstantSearch, 
-  Hits, 
-  Pagination, 
-  Stats, 
-  Configure,
-  useInstantSearch,
-  useSearchBox
-} from 'react-instantsearch';
-import { searchClient, INDEX_NAME } from './services/algoliaClient';
-import { Header } from './components/Header';
-import { SearchResultItem } from './components/SearchResultItem';
-import { EmptyState } from './components/EmptyState';
-import { Search, Loader2, X } from 'lucide-react';
-
-// Custom SearchBox to prevent search-as-you-type
-const CustomSearchBox = (props: any) => {
-  const { query, refine } = useSearchBox(props);
-  const [inputValue, setInputValue] = useState(query);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync local state if query changes from outside (e.g. URL or clear)
-  useEffect(() => {
-    setInputValue(query);
-  }, [query]);
-
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
-    // Only search when explicitly requested
-    refine(inputValue);
-  };
-
-  const handleReset = () => {
-    setInputValue('');
-    refine('');
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  };
-
-  return (
-    <form 
-      onSubmit={handleSubmit} 
-      className="relative w-full flex items-center gap-2"
-    >
-      <div className="relative flex-grow">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="ابحث في التاريخ... (مثال: فتح القسطنطينية)"
-          className="w-full pl-4 pr-12 py-4 bg-stone-50 border-2 border-stone-200 rounded-xl text-lg focus:outline-none focus:border-amber-500 focus:bg-white transition-colors shadow-inner placeholder:text-stone-400"
-        />
-        {inputValue && (
-          <button
-            type="button"
-            onClick={handleReset}
-            className="absolute left-3 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-600"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-          <Search className="h-5 w-5 text-stone-400" />
-        </div>
-      </div>
-      
-      <button
-        type="submit"
-        className="bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-8 rounded-xl transition-colors shadow-md flex items-center gap-2 whitespace-nowrap"
-      >
-        <Search className="w-5 h-5" />
-        بحث
-      </button>
-    </form>
-  );
-};
-
-// Wrapper to handle empty results properly using hook
-const Results = () => {
-  const { results, status } = useInstantSearch();
-
-  if (status === 'loading' || status === 'stalled') {
-    return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
-      </div>
-    );
-  }
-
-  // Show something else if there is no search yet, or handle empty hits
-  if (results.nbHits === 0) {
-    return <EmptyState />;
-  }
-
-  return (
-    <div className="space-y-6">
-      <Hits 
-        hitComponent={SearchResultItem} 
-        classNames={{
-          list: 'space-y-6',
-          item: 'bg-transparent'
-        }}
-      />
-      <div className="flex justify-center py-8 dir-ltr">
-        <Pagination 
-          classNames={{
-            list: 'flex gap-2 flex-wrap justify-center',
-            item: 'hidden md:block group',
-            selectedItem: 'font-bold pagination-selected',
-            link: 'px-4 py-2 rounded-lg border border-stone-200 bg-white text-stone-600 hover:bg-amber-50 hover:border-amber-300 transition-colors group-[.pagination-selected]:!bg-amber-600 group-[.pagination-selected]:!text-white group-[.pagination-selected]:!border-amber-600',
-            disabledItem: 'opacity-50 cursor-not-allowed'
-          }}
-        />
-      </div>
-    </div>
-  );
-};
+import React from 'react';
+import { SearchApp } from './components/SearchApp';
+import { Menu, Globe } from 'lucide-react';
 
 const App: React.FC = () => {
   return (
-    <div className="min-h-screen bg-[#fdfbf7] flex flex-col">
-      <Header />
-      
-      <main className="flex-grow">
-        <InstantSearch searchClient={searchClient} indexName={INDEX_NAME} future={{ preserveSharedStateOnUnmount: true }}>
-          {/* Update: Hits per page set to 20 */}
-          <Configure hitsPerPage={20} />
-
-          {/* Search Area */}
-          <div className="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-30">
-            <div className="container mx-auto px-4 py-6">
-              <div className="relative max-w-4xl mx-auto">
-                {/* Using CustomSearchBox instead of default SearchBox */}
-                <CustomSearchBox />
-              </div>
-              
-              <div className="max-w-4xl mx-auto mt-2 flex justify-between items-center text-xs text-stone-500 px-2">
-                <Stats 
-                  translations={{
-                    rootElementText({ nbHits, processingTimeMS }) {
-                      return `تم العثور على ${nbHits.toLocaleString('ar-EG')} نتيجة في ${processingTimeMS} جزء من الثانية`;
-                    },
-                  }}
-                />
-                <span>بحث يدوي (توفير البيانات)</span>
-              </div>
+    <div className="min-h-screen flex flex-col bg-wiki-bg">
+      {/* Wikipedia-style Header */}
+      <header className="bg-white border-b border-wiki-border h-16">
+        <div className="container mx-auto px-4 h-full flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button className="p-2 hover:bg-slate-100 rounded md:hidden">
+              <Menu className="w-6 h-6 text-slate-600" />
+            </button>
+            <div className="flex items-center gap-3">
+               <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-700 border border-wiki-border">
+                 <Globe className="w-6 h-6" />
+               </div>
+               <div className="hidden md:block leading-tight">
+                 <h1 className="font-serif text-lg font-bold text-wiki-text">
+                   التاريخ الكبير
+                 </h1>
+                 <p className="text-xs text-slate-500">الموسوعة الحرة (تجريبي)</p>
+               </div>
             </div>
           </div>
-
-          {/* Results Area */}
-          <div className="container mx-auto px-4 py-8 max-w-4xl">
-             <Results />
+          
+          <div className="flex items-center gap-4 text-sm text-wiki-link">
+            <span className="hidden md:inline hover:underline cursor-pointer">اقرأ</span>
+            <span className="hidden md:inline hover:underline cursor-pointer">عدل</span>
+            <span className="hidden md:inline hover:underline cursor-pointer">تاريخ</span>
           </div>
-        </InstantSearch>
+        </div>
+      </header>
+
+      <main className="flex-grow container mx-auto px-4 py-6 flex flex-col md:flex-row gap-6">
+        {/* Sidebar (Wiki style) */}
+        <aside className="hidden md:block w-48 flex-shrink-0 text-sm space-y-6 pt-2">
+          <div className="space-y-2">
+             <div className="font-bold text-slate-500 px-2">الموسوعة</div>
+             <ul className="space-y-1">
+                <li className="px-2 py-1 hover:bg-slate-200 cursor-pointer text-wiki-link">الصفحة الرئيسية</li>
+                <li className="px-2 py-1 hover:bg-slate-200 cursor-pointer text-wiki-link">الأحداث الجارية</li>
+                <li className="px-2 py-1 hover:bg-slate-200 cursor-pointer text-wiki-link">أحدث التغييرات</li>
+                <li className="px-2 py-1 hover:bg-slate-200 cursor-pointer text-wiki-link">صفحة عشوائية</li>
+             </ul>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <div className="flex-grow bg-white border border-wiki-border p-6 md:p-8 min-h-[600px] shadow-sm relative">
+           {/* Page Title Overlay */}
+           <div className="border-b border-wiki-border pb-2 mb-6 flex justify-between items-end">
+              <h1 className="text-3xl font-serif font-medium text-wiki-text">
+                البداية والنهاية
+              </h1>
+              <div className="text-xs text-slate-500 mb-1">
+                من ويكيبيديا، الموسوعة الحرة
+              </div>
+           </div>
+
+           <SearchApp />
+        </div>
       </main>
 
-      <footer className="bg-stone-900 text-stone-400 py-8 mt-auto border-t border-stone-800">
+      <footer className="bg-wiki-bg text-slate-600 py-6 border-t border-wiki-border mt-auto text-xs">
         <div className="container mx-auto px-4 text-center">
-          <p className="font-amiri text-lg mb-2">البداية والنهاية</p>
-          <p className="text-sm opacity-60">&copy; {new Date().getFullYear()} جميع الحقوق محفوظة. مشروع التاريخ الكبير.</p>
+          <p className="mb-2">
+             النصوص متاحة تحت <span className="text-wiki-link cursor-pointer hover:underline">رخصة المشاع الإبداعي</span>.
+          </p>
+          <div className="flex justify-center gap-4 text-wiki-link">
+            <span className="cursor-pointer hover:underline">سياسة الخصوصية</span>
+            <span className="cursor-pointer hover:underline">حول الموسوعة</span>
+            <span className="cursor-pointer hover:underline">إخلاء المسؤولية</span>
+          </div>
         </div>
       </footer>
     </div>
