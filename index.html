@@ -282,7 +282,8 @@
     // --- Reader Component with Improved Navigation ---
 
     const ReaderView = ({ initialHit, onClose }) => {
-      const [fontSize, setFontSize] = useState(24);
+      const ZOOM_LEVELS = [20, 24, 28, 34, 42];
+      const [zoomIndex, setZoomIndex] = useState(1); // Start at 24px
       const [currentHit, setCurrentHit] = useState(initialHit);
       const [loading, setLoading] = useState(false);
       const contentRef = useRef(null);
@@ -290,6 +291,10 @@
       useEffect(() => {
         setCurrentHit(initialHit);
       }, [initialHit]);
+
+      const handleZoom = () => {
+        setZoomIndex((prev) => (prev + 1) % ZOOM_LEVELS.length);
+      };
 
       const fetchAdjacentPage = async (direction) => {
         if (loading) return;
@@ -323,7 +328,7 @@
               targetHit = candidates.sort((a, b) => {
                 const lenA = a.text_content ? a.text_content.length : 0;
                 const lenB = b.text_content ? b.text_content.length : 0;
-                return lenB - lenA; // Descending order
+                return lenB - lenA;
               })[0];
             }
           }
@@ -433,55 +438,90 @@
       if (!currentHit) return null;
 
       return (
-        <div className="reader-overlay animate-fade-in">
-          <div className="reader-toolbar">
-            <div className="flex items-center gap-4">
-              <button onClick={onClose} className="reader-nav-btn">
-                <ArrowRight className="w-5 h-5" />
-                <span>عودة</span>
-              </button>
-              <div className="flex items-center gap-2 mr-4 border-r pr-4">
-                <button onClick={() => setFontSize(Math.max(18, fontSize - 2))} className="p-2 hover:bg-gray-100 rounded-full"><ZoomOut className="w-5 h-5" /></button>
-                <span className="font-mono text-lg w-8 text-center">{fontSize}</span>
-                <button onClick={() => setFontSize(Math.min(48, fontSize + 2))} className="p-2 hover:bg-gray-100 rounded-full"><ZoomIn className="w-5 h-5" /></button>
+        <div className="fixed inset-0 z-50 bg-paper-bg overflow-y-auto animate-fade-in">
+          {/* Main Content Container - Centered and Full Height */}
+          <div className="min-h-screen w-full max-w-5xl mx-auto bg-white shadow-2xl relative flex flex-col">
+
+            {/* Header Info (Minimal) */}
+            <div className="p-6 border-b border-slate-100 text-center select-none">
+              <h2 className="text-xl font-bold text-slate-800 font-serif">{currentHit.book_title}</h2>
+              <div className="text-sm text-slate-500 font-mono mt-1">
+                جزء {currentHit.part_number} • صفحة {currentHit.page_number}
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button onClick={() => fetchAdjacentPage('prev')} disabled={loading} className="reader-nav-btn">
-                <ChevronRight className="w-5 h-5" />
-                <span className="hidden sm:inline">السابقة</span>
-              </button>
-              <div className="text-center mx-4">
-                <div className="font-bold text-sm">{currentHit.book_title}</div>
-                <div className="text-xs text-gray-500">ج {currentHit.part_number} • ص {currentHit.page_number}</div>
+            {/* Text Content */}
+            <div className="flex-grow p-8 md:p-16" ref={contentRef}>
+              {loading && (
+                <div className="absolute inset-0 bg-white/80 z-10 flex flex-col items-center justify-center">
+                  <div className="loader w-10 h-10 border-4 border-slate-400"></div>
+                </div>
+              )}
+              <div className="font-serif text-slate-800 leading-loose transition-all duration-300" style={{ fontSize: `${ZOOM_LEVELS[zoomIndex]}px` }}>
+                {formattedText}
               </div>
-              <button onClick={() => fetchAdjacentPage('next')} disabled={loading} className="reader-nav-btn">
-                <span className="hidden sm:inline">التالية</span>
-                <ChevronLeft className="w-5 h-5" />
+            </div>
+
+            {/* Footer / Next Page Trigger */}
+            <div className="p-12 text-center border-t border-slate-100 bg-slate-50">
+              <button onClick={() => fetchAdjacentPage('next')} className="text-slate-400 hover:text-slate-600 transition-colors flex items-center justify-center gap-2 mx-auto">
+                <span>اضغط للانتقال للصفحة التالية</span>
+                <ChevronLeft className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          <div className="reader-content" ref={contentRef}>
-            {loading && (
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="loader"></div>
-                <p className="text-gray-500 mt-4">جاري التحميل...</p>
-              </div>
-            )}
+          {/* Floating Action Buttons (FABs) */}
 
-            <div className="reader-text" style={{ fontSize: `${fontSize}px` }}>
-              {formattedText}
-            </div>
+          {/* Back Button - Top Right */}
+          <button
+            onClick={onClose}
+            className="fixed top-6 right-6 z-50 w-12 h-12 bg-white rounded-full shadow-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-red-600 transition-all flex items-center justify-center group"
+            title="عودة للبحث"
+          >
+            <X className="w-6 h-6" />
+            <span className="absolute right-14 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">عودة</span>
+          </button>
 
-            <div className="mt-16 text-center border-t pt-8">
-              <button onClick={() => fetchAdjacentPage('next')} disabled={loading} className="reader-nav-btn mx-auto px-8 py-4 text-lg">
-                <span>{loading ? 'جاري الانتقال...' : 'اقرأ الصفحة التالية'}</span>
-                {!loading && <ChevronLeft className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
+          {/* Zoom Button - Bottom Right */}
+          <button
+            onClick={handleZoom}
+            className="fixed bottom-8 right-8 z-50 w-14 h-14 bg-blue-600 rounded-full shadow-xl text-white hover:bg-blue-700 hover:scale-105 transition-all flex items-center justify-center group"
+            title="تكبير الخط"
+          >
+            <ZoomIn className="w-7 h-7" />
+            <span className="absolute right-16 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              {zoomIndex === ZOOM_LEVELS.length - 1 ? 'إعادة تعيين' : 'تكبير'}
+            </span>
+            <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-[10px] flex items-center justify-center border-2 border-white">
+              {zoomIndex + 1}
+            </span>
+          </button>
+
+          {/* Navigation Buttons - Side Floating */}
+
+          {/* Next Page (Left Side) */}
+          <button
+            onClick={() => fetchAdjacentPage('next')}
+            disabled={loading}
+            className="fixed top-1/2 left-6 -translate-y-1/2 z-50 w-12 h-12 bg-white/90 backdrop-blur rounded-full shadow-lg border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:scale-110 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed group"
+            title="الصفحة التالية"
+          >
+            <ChevronLeft className="w-8 h-8" />
+            <span className="absolute left-14 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">التالية</span>
+          </button>
+
+          {/* Previous Page (Right Side) */}
+          <button
+            onClick={() => fetchAdjacentPage('prev')}
+            disabled={loading}
+            className="fixed top-1/2 right-6 -translate-y-1/2 z-40 w-12 h-12 bg-white/90 backdrop-blur rounded-full shadow-lg border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:scale-110 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed group"
+            title="الصفحة السابقة"
+          >
+            <ChevronRight className="w-8 h-8" />
+            <span className="absolute right-14 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">السابقة</span>
+          </button>
+
         </div>
       );
     };
