@@ -5,6 +5,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>الموسوعة - الحديث الشريف</title>
+  <meta name="description" content="محرك بحث متخصص في الحديث الشريف مع إمكانية الوصول إلى الحكم، الراوي والتخريج لكل حديث.">
+  <meta name="keywords" content="حديث شريف, تخريج, حكم الحديث, السيرة, السنة النبوية, الدرر السنية">
+  <link rel="canonical" href="https://sufyan769.github.io/-bayan/hadith.html" />
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="الموسوعة الشاملة - الحديث الشريف">
+  <meta property="og:description"
+    content="استعرض الأحاديث النبوية مع إمكانية قراءة التفاصيل الكاملة والانتقال إلى الشرح والتخريج.">
+  <meta property="og:url" content="https://sufyan769.github.io/-bayan/hadith.html">
+  <meta property="og:locale" content="ar_AR">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="الموسوعة - الحديث الشريف">
+  <meta name="twitter:description"
+    content="ابحث عن الأحاديث النبوية بدقة مع دعم التخريج والانتقال إلى التفاصيل الكاملة.">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -219,28 +232,12 @@
         // Clean text for snippet
         const cleanSnippet = displayText.replace(/<[^>]*>?/gm, '').substring(0, 200) + "...";
 
-        let hukmBadge = '';
-        if (doc.hukm) {
-          const h = Array.isArray(doc.hukm) ? doc.hukm[0] : doc.hukm;
-          let color = 'text-gray-500';
-          if (h.includes('صحيح')) color = 'text-green-600 font-bold';
-          if (h.includes('ضعيف')) color = 'text-red-600';
-          hukmBadge = `<span class="${color} text-xs border border-gray-200 px-2 py-1 rounded">${h}</span>`;
-        }
-
         article.innerHTML = `
-          <div class="result-meta mb-2">
-             ${hukmBadge}
-             ${doc.source ? `<span class="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">${Array.isArray(doc.source) ? doc.source[0] : doc.source}</span>` : ''}
-          </div>
           <h3 class="result-title">
             <a href="details_hadith.html?id=${doc.id}">
               ${cleanSnippet}
             </a>
           </h3>
-          <div class="result-meta mt-2">
-             ${doc.rawi ? `<span>الراوي: ${Array.isArray(doc.rawi) ? doc.rawi.join('، ') : doc.rawi}</span>` : ''}
-          </div>
         `;
 
         article.querySelector('a').addEventListener('click', () => {

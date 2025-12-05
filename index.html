@@ -5,6 +5,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>الموسوعة الشاملة - الرئيسية</title>
+  <meta name="description"
+    content="محرك بحث موحد يجمع الحديث الشريف، الفتاوى، التراجم، التاريخ وقواعد البيانات الإسلامية في واجهة واحدة.">
+  <meta name="keywords"
+    content="حديث شريف, فتاوى, تراجم العلماء, البداية والنهاية, موسوعة إسلامية, بحث شرعي, اسلام ويب, الدرر السنية">
+  <link rel="canonical" href="https://sufyan769.github.io/-bayan/" />
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="الموسوعة الشاملة - بحث إسلامي موحد">
+  <meta property="og:description"
+    content="ابحث في مئات الأحاديث والفتاوى والتراجم عبر محرك واحد سريع يعتمد على Algolia وFirebase.">
+  <meta property="og:url" content="https://sufyan769.github.io/-bayan/">
+  <meta property="og:locale" content="ar_AR">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="الموسوعة الشاملة">
+  <meta name="twitter:description"
+    content="واجهة واحدة للبحث في الحديث الشريف، الفتاوى، التاريخ، تراجم العلماء وقاعدة Firebase.">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "الموسوعة الشاملة",
+      "url": "https://sufyan769.github.io/-bayan/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://sufyan769.github.io/-bayan/index.html?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+  </script>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -115,6 +143,28 @@
         <a href="firebase-search.html">بحث Firebase فقط</a>
       </div>
     </section>
+
+    <section class="curated-grid">
+      <div class="curated-section">
+        <header>
+          <h3>فتاوى مختارة</h3>
+          <a href="algolia-search.html">عرض الكل</a>
+        </header>
+        <div id="featuredFatwas" class="curated-list">
+          <p class="curated-empty">جاري تحميل الفتاوى...</p>
+        </div>
+      </div>
+
+      <div class="curated-section">
+        <header>
+          <h3>مختارات من التراجم</h3>
+          <a href="scholars.html">عرض الكل</a>
+        </header>
+        <div id="featuredScholars" class="curated-list">
+          <p class="curated-empty">جاري تحميل التراجم...</p>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer class="site-footer">
@@ -167,6 +217,13 @@
       }
     };
 
+    const PLACEHOLDER_DOMAIN = 'https://your-site.com';
+    const FATWA_PAGE = 'fatwa.html';
+
+    const stripPlaceholderDomain = (value = '') => value ? value.split(PLACEHOLDER_DOMAIN).join('') : '';
+    const truncateText = (text = '', length = 220) => text.length > length ? `${text.substring(0, length)}...` : text;
+    const buildFatwaDetailUrl = (id) => id ? `${FATWA_PAGE}?id=${encodeURIComponent(id)}` : '#';
+
     const app = initializeApp(CONFIG.firebase);
     const db = getFirestore(app);
     const scholarApp = initializeApp(CONFIG.scholarFirebase, "scholarApp");
@@ -185,6 +242,8 @@
     const resultsList = document.getElementById('resultsList');
     const loadingState = document.getElementById('loadingState');
     const noResultsState = document.getElementById('noResultsState');
+    const featuredFatwasEl = document.getElementById('featuredFatwas');
+    const featuredScholarsEl = document.getElementById('featuredScholars');
 
     const PLACEHOLDERS = {
       all: "ابحث في الموسوعة (مثلاً: البخاري، عمر بن الخطاب)...",
@@ -222,6 +281,7 @@
           sessionStorage.removeItem('lastSearchResults');
         }
       }
+      loadCuratedSections();
     });
 
     function setActiveTab(tab) {
@@ -346,11 +406,13 @@
           }
           const source = hit.source ? (Array.isArray(hit.source) ? hit.source[0] : hit.source) : '';
           const rawi = hit.rawi ? (Array.isArray(hit.rawi) ? hit.rawi[0] : hit.rawi) : '';
+          const takhrij = hit.takhrij ? (Array.isArray(hit.takhrij) ? hit.takhrij[0] : hit.takhrij) : '';
           meta = `
             <div class="flex flex-wrap gap-2 items-center">
                 ${hukmBadge}
                 ${source ? `<span class="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">${source}</span>` : ''}
                 ${rawi ? `<span class="text-xs text-brown font-bold">الراوي: ${rawi}</span>` : ''}
+                ${takhrij ? `<span class="text-xs text-gray-500">التخريج: ${takhrij}</span>` : ''}
             </div>
           `;
         } else if (type === 'scholars') {
@@ -366,11 +428,11 @@
           link = `history.html?id=${hit.objectID}`;
           meta = `<span class="badge badge-warning">تاريخ</span>`;
         } else if (type === 'fatawa') {
-          title = hit.question || "فتوى";
-          const answerPreview = hit.answer || hit.answer_snippet || hit.text || "";
-          snippet = answerPreview.substring(0, 220) + "...";
-          const src = hit.source || '';
-          link = src ? `/fatwa_pages/${src}` : '#';
+          const fatwaId = hit.objectID || hit.id || '';
+          title = stripPlaceholderDomain(hit.question || "فتوى");
+          const answerPreview = stripPlaceholderDomain(hit.answer_snippet || hit.answer || hit.text || "لا يوجد نص للجواب.");
+          snippet = truncateText(answerPreview, 220);
+          link = buildFatwaDetailUrl(fatwaId);
           meta = `<span class="badge badge-info">فتوى</span> ${hit.source ? hit.source.replace('.html', '') : ''}`;
         } else if (type === 'firebase') {
           title = hit.name || "سيرة معرفية";
@@ -428,6 +490,71 @@
       } catch {
         return url;
       }
+    }
+
+    const renderCuratedPlaceholder = (el, message) => {
+      if (!el) return;
+      el.innerHTML = `<p class="curated-empty">${message}</p>`;
+    };
+
+    async function loadCuratedSections() {
+      if (!featuredFatwasEl || !featuredScholarsEl) return;
+      renderCuratedPlaceholder(featuredFatwasEl, 'جاري تحميل الفتاوى...');
+      renderCuratedPlaceholder(featuredScholarsEl, 'جاري تحميل التراجم...');
+      try {
+        const [fatwaRes, scholarRes] = await Promise.all([
+          clients.fatawa.search('', { hitsPerPage: 5, attributesToRetrieve: ['question', 'source', 'objectID', 'id'] }),
+          clients.scholars.search('', { hitsPerPage: 5, attributesToRetrieve: ['name', 'death', 'trj', 'objectID', 'id'] })
+        ]);
+        renderCuratedFatwas(fatwaRes.hits || []);
+        renderCuratedScholars(scholarRes.hits || []);
+      } catch (error) {
+        console.error('Curated sections error:', error);
+        renderCuratedPlaceholder(featuredFatwasEl, 'تعذر تحميل الفتاوى المختارة.');
+        renderCuratedPlaceholder(featuredScholarsEl, 'تعذر تحميل التراجم المختارة.');
+      }
+    }
+
+    function renderCuratedFatwas(hits) {
+      if (!hits.length) {
+        renderCuratedPlaceholder(featuredFatwasEl, 'لا توجد فتاوى متاحة الآن.');
+        return;
+      }
+      featuredFatwasEl.innerHTML = '';
+      hits.forEach(hit => {
+        const id = hit.objectID || hit.id || '';
+        const question = stripPlaceholderDomain(hit.question || 'سؤال بدون عنوان');
+        const item = document.createElement('a');
+        item.href = buildFatwaDetailUrl(id);
+        item.className = 'curated-item';
+        item.innerHTML = `
+          <p class="curated-item-title">${question}</p>
+          <p class="curated-item-meta">${hit.source ? hit.source.replace('.html', '') : ''}</p>
+        `;
+        featuredFatwasEl.appendChild(item);
+      });
+    }
+
+    function renderCuratedScholars(hits) {
+      if (!hits.length) {
+        renderCuratedPlaceholder(featuredScholarsEl, 'لا توجد تراجم متاحة الآن.');
+        return;
+      }
+      featuredScholarsEl.innerHTML = '';
+      hits.forEach(hit => {
+        const docId = hit.objectID || hit.id || '';
+        const name = hit.name || 'سيرة معرفية';
+        const excerpt = stripPlaceholderDomain(truncateText(hit.trj || '', 150));
+        const meta = hit.death ? `توفي سنة ${hit.death}` : '';
+        const item = document.createElement('a');
+        item.href = `details_scholars.html?id=${docId}`;
+        item.className = 'curated-item';
+        item.innerHTML = `
+          <p class="curated-item-title">${name}</p>
+          <p class="curated-item-meta">${excerpt || meta}</p>
+        `;
+        featuredScholarsEl.appendChild(item);
+      });
     }
 
   </script>

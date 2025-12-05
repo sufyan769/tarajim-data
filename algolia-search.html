@@ -226,48 +226,12 @@
     </section>
   </main>
 
-  <div id="detailPanel" class="fatwa-panel hidden">
-    <div class="fatwa-panel__surface">
-      <div class="fatwa-panel__header">
-        <div>
-          <p class="eyebrow" id="detailId">فتوى</p>
-          <h2 id="detailQuestion"></h2>
-        </div>
-        <button id="closeDetailBtn" class="fatwa-panel__close" aria-label="إغلاق">
-          <i data-lucide="x"></i>
-        </button>
-      </div>
-      <div class="fatwa-panel__meta" id="detailMeta"></div>
-      <div class="fatwa-actions">
-        <button id="copyBtn"><i data-lucide="copy"></i> نسخ الجواب</button>
-        <button id="shareBtn"><i data-lucide="share-2"></i> مشاركة</button>
-      </div>
-      <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border-color);" />
-      <div class="fatwa-panel__body" id="detailAnswer"></div>
-    </div>
-  </div>
-
   <footer class="site-footer">
     <p>&copy; 2025 الموسوعة الشاملة. جميع الحقوق محفوظة.</p>
   </footer>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
     import algoliasearch from 'https://cdn.jsdelivr.net/npm/algoliasearch@4.22.1/dist/algoliasearch-lite.esm.browser.js';
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyC9kI6aUcgHokt7e20TOL1IQpA9M7r15pc",
-      authDomain: "alfatawa-96fdd.firebaseapp.com",
-      projectId: "alfatawa-96fdd",
-      storageBucket: "alfatawa-96fdd.firebasestorage.app",
-      messagingSenderId: "796227786570",
-      appId: "1:796227786570:web:bfaed60987b9b81cc853b3",
-      measurementId: "G-EXLF43763E"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
 
     const APP_ID = '3XD12I7386';
     const API_KEY = '89e8e132a05fdb02275f64dec8d14d05';
@@ -282,57 +246,32 @@
     const noResultsState = document.getElementById('noResultsState');
     const resultsList = document.getElementById('resultsList');
 
-    const detailPanel = document.getElementById('detailPanel');
-    const detailQuestion = document.getElementById('detailQuestion');
-    const detailMeta = document.getElementById('detailMeta');
-    const detailAnswer = document.getElementById('detailAnswer');
-    const detailId = document.getElementById('detailId');
-    const copyBtn = document.getElementById('copyBtn');
-    const shareBtn = document.getElementById('shareBtn');
-    const closeDetailBtn = document.getElementById('closeDetailBtn');
-
     let currentHits = [];
-    let currentFatwa = null;
 
     const PLACEHOLDER_DOMAIN = 'https://your-site.com';
+    const FATWA_PAGE = 'fatwa.html';
 
     const stripPlaceholderDomain = (value = '') => value ? value.split(PLACEHOLDER_DOMAIN).join('') : '';
+    const hasHTMLMarkup = (value = '') => /<\/?[a-z][\s\S]*>/i.test(value);
 
-    const getDirectoryPrefix = () => {
-      const { protocol, host, pathname } = window.location;
-      const directoryPath = pathname.replace(/[^/]+$/, '');
-      if (host) {
-        return `${protocol}//${host}${directoryPath}`;
-      }
-      return `${protocol}//${directoryPath}`;
-    };
+    const buildFatwaDetailUrl = (id) => id ? `${FATWA_PAGE}?id=${encodeURIComponent(id)}` : '#';
 
-    const buildAbsoluteFromRelative = (relativePath = '') => {
-      if (!relativePath) return getDirectoryPrefix();
-      const normalized = relativePath.replace(/^\/+/, '');
-      return `${getDirectoryPrefix()}${normalized}`;
-    };
-
-    const resolveInternalFatwaHref = (href = '') => {
+    const rewriteFatwaHref = (href = '') => {
       if (!href) return href;
-      let normalized = href.replace(PLACEHOLDER_DOMAIN, '');
-      normalized = normalized.replace(/^https?:\/\/[^/]+\//i, '');
-      normalized = normalized.replace(/^\/+/, '');
-      if (!normalized.startsWith('fatwa_pages/')) {
-        return href;
+      const cleaned = stripPlaceholderDomain(href);
+      const match = cleaned.match(/fatwa_(\d+)\.html/i);
+      if (match && match[1]) {
+        return buildFatwaDetailUrl(match[1]);
       }
-      return buildAbsoluteFromRelative(normalized);
+      return href;
     };
 
     const convertFatwaLinks = (html = '') => {
       if (!html) return html;
-      return html.replace(/href="([^"]*fatwa_pages\/[^"]*)"/gi, (_, path) => {
-        const resolved = resolveInternalFatwaHref(path);
-        return `href="${resolved}"`;
+      return html.replace(/href="([^"]*fatwa_pages\/[^"]*)"/gi, (fullMatch, href) => {
+        return `href="${rewriteFatwaHref(href)}"`;
       });
     };
-
-    const hasHTMLMarkup = (value = '') => /<\/?[a-z][\s\S]*>/i.test(value);
 
     const renderRichText = (value, { wrapParagraphs = true, fallback = '' } = {}) => {
       const cleaned = stripPlaceholderDomain(value || '').trim();
@@ -344,32 +283,13 @@
       return convertFatwaLinks(parts.map(line => `<p>${line}</p>`).join(''));
     };
 
-    const buildFatwaPath = (source = '') => {
-      if (!source) return '';
-      const normalized = source.replace(/^\/?fatwa_pages\//i, '');
-      const relative = `fatwa_pages/${normalized}`;
-      return buildAbsoluteFromRelative(relative);
-    };
-
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       const params = new URLSearchParams(window.location.search);
       const term = params.get('q') || '';
-      const id = params.get('id');
       if (term) {
         searchInput.value = term;
         handleSearch(term);
-      }
-      if (id) {
-        openFatwaById(id);
-      }
-    });
-
-    window.addEventListener('popstate', () => {
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
-      if (!id) {
-        closeDetail();
       }
     });
 
@@ -437,7 +357,6 @@
         question: stripPlaceholderDomain(hit.question || hit.title || 'سؤال بدون عنوان'),
         snippet: stripPlaceholderDomain(snippet),
         source,
-        pagePath: buildFatwaPath(source),
         raw: hit
       };
     }
@@ -459,11 +378,11 @@
             <span class="fatwa-card__cta">انقر لعرض الجواب</span>
           </footer>
         `;
-        article.addEventListener('click', () => openDetail(item));
+        article.addEventListener('click', () => navigateToDetail(item.id));
         article.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            openDetail(item);
+            navigateToDetail(item.id);
           }
         });
         resultsList.appendChild(article);
@@ -471,126 +390,11 @@
       resultsList.classList.remove('hidden');
     }
 
-    async function openFatwaById(id) {
-      try {
-        const hit = currentHits.find(h => h.id === id);
-        if (hit) {
-          openDetail(hit);
-        } else {
-          const fetched = await fetchFatwaById(id);
-          if (fetched) {
-            openDetail(fetched);
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
+    function navigateToDetail(id) {
+      if (!id) return;
+      window.location.href = buildFatwaDetailUrl(id);
     }
 
-    function closeDetail() {
-      detailPanel.classList.add('hidden');
-      currentFatwa = null;
-    }
-
-    closeDetailBtn.addEventListener('click', () => {
-      const url = new URL(window.location);
-      url.searchParams.delete('id');
-      window.history.pushState({}, '', url);
-      closeDetail();
-    });
-
-    detailPanel.addEventListener('click', (e) => {
-      if (e.target === detailPanel) {
-        const url = new URL(window.location);
-        url.searchParams.delete('id');
-        window.history.pushState({}, '', url);
-        closeDetail();
-      }
-    });
-
-    copyBtn.addEventListener('click', () => {
-      if (!currentFatwa) return;
-      const text = `السؤال: ${currentFatwa.question}\n\nالجواب: ${detailAnswer.innerText}`;
-      navigator.clipboard.writeText(text).then(() => {
-        copyBtn.textContent = 'تم النسخ';
-        setTimeout(() => {
-          copyBtn.innerHTML = '<i data-lucide="copy"></i> نسخ الجواب';
-          lucide.createIcons();
-        }, 1500);
-      });
-    });
-
-    shareBtn.addEventListener('click', () => {
-      if (!currentFatwa) return;
-      const url = new URL(window.location);
-      url.searchParams.set('id', currentFatwa.id);
-      navigator.clipboard.writeText(url.toString());
-      shareBtn.textContent = 'تم نسخ الرابط';
-      setTimeout(() => {
-        shareBtn.innerHTML = '<i data-lucide="share-2"></i> مشاركة';
-        lucide.createIcons();
-      }, 1500);
-    });
-
-    async function openDetail(item) {
-      currentFatwa = item;
-      detailPanel.classList.remove('hidden');
-      detailQuestion.innerHTML = renderRichText(item.question, { wrapParagraphs: false, fallback: 'سؤال بدون عنوان' });
-      detailMeta.innerHTML = renderMeta(item);
-      detailId.textContent = `فتوى رقم ${item.id || ''}`;
-      detailAnswer.innerHTML = 'جاري تحميل الجواب الكامل...';
-      const url = new URL(window.location);
-      url.searchParams.set('id', item.id || '');
-      window.history.pushState({}, '', url);
-
-      try {
-        const full = await fetchFatwaById(item.id || item.source);
-        currentFatwa = { ...item, ...full, question: full.question || item.question };
-        detailQuestion.innerHTML = renderRichText(full.question || item.question, { wrapParagraphs: false, fallback: 'سؤال بدون عنوان' });
-        detailMeta.innerHTML = renderMeta(full);
-        detailAnswer.innerHTML = formatAnswer(full.answer);
-      } catch (err) {
-        detailAnswer.innerHTML = 'تعذر تحميل الجواب الكامل.';
-        console.error(err);
-      }
-      lucide.createIcons();
-    }
-
-    function renderMeta(item) {
-      const parts = [];
-      if (item.source) parts.push(`المصدر: ${item.source}`);
-      const path = buildFatwaPath(item.source || item.raw?.source || '');
-      if (path) parts.push(`<a href="${path}" target="_blank" rel="noopener">عرض الصفحة الكاملة</a>`);
-      return parts.join(' | ');
-    }
-
-    function formatAnswer(text) {
-      return renderRichText(text, { wrapParagraphs: true, fallback: '<p>لا يوجد نص للجواب.</p>' });
-    }
-
-    const fatwaCache = new Map();
-
-    async function getFatwaDoc(id) {
-      if (!id) return null;
-      if (fatwaCache.has(id)) return fatwaCache.get(id);
-      const ref = doc(db, "alfatawa", String(id));
-      const snap = await getDoc(ref);
-      if (!snap.exists()) return null;
-      const data = snap.data();
-      fatwaCache.set(id, data);
-      return data;
-    }
-
-    async function fetchFatwaById(id) {
-      const data = await getFatwaDoc(id);
-      if (!data) throw new Error('لم يتم العثور على الفتوى');
-      return {
-        id: data.id || id,
-        question: data.question || '',
-        answer: data.answer || '',
-        source: data.source || ''
-      };
-    }
   </script>
 </body>
 
