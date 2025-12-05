@@ -147,7 +147,7 @@
       fatawa: {
         appId: '3XD12I7386',
         apiKey: '89e8e132a05fdb02275f64dec8d14d05',
-        indexName: 'fatawa'
+        indexName: 'alfatawa'
       },
       firebase: {
         apiKey: "AIzaSyBYJ2pVoWJ5ednWOnnF2dOJ43MJvDi_8rw",
@@ -367,10 +367,10 @@
           meta = `<span class="badge badge-warning">تاريخ</span>`;
         } else if (type === 'fatawa') {
           title = hit.question || "فتوى";
-          const answerPreview = hit.answer || hit.text || "";
+          const answerPreview = hit.answer || hit.answer_snippet || hit.text || "";
           snippet = answerPreview.substring(0, 220) + "...";
-          const targetId = hit.objectID || hit.id;
-          link = `algolia-search.html#/fatwa/${targetId}`;
+          const src = hit.source || '';
+          link = src ? `/fatwa_pages/${src}` : '#';
           meta = `<span class="badge badge-info">فتوى</span> ${hit.source ? hit.source.replace('.html', '') : ''}`;
         } else if (type === 'firebase') {
           title = hit.name || "سيرة معرفية";
@@ -415,6 +415,19 @@
       }
 
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    function normalizeResultUrl(url) {
+      if (!url) return '';
+      try {
+        const parsed = new URL(url, window.location.origin);
+        if (parsed.hostname.includes('your-site.com')) {
+          return parsed.pathname + parsed.search + parsed.hash;
+        }
+        return url;
+      } catch {
+        return url;
+      }
     }
 
   </script>
