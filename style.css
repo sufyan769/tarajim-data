@@ -70,10 +70,24 @@ body {
     gap: 12px;
     font-family: 'Amiri', serif;
     font-weight: 700;
-    font-size: 1.6rem;
+    font-size: 1.8rem;
     color: var(--primary-color);
     text-decoration: none;
     transition: transform 0.2s;
+}
+
+.brand-mark {
+    display: inline-flex;
+    gap: 6px;
+    align-items: baseline;
+}
+
+.brand-slate {
+    color: var(--primary-color);
+}
+
+.brand-accent {
+    color: var(--accent-color);
 }
 
 .nav-logo:hover {
@@ -152,6 +166,11 @@ body {
     flex-direction: column;
     gap: 18px;
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+}
+
+.search-stack--compact {
+    padding: 18px;
+    border-radius: 14px;
 }
 
 .stack-header {
@@ -780,6 +799,31 @@ body {
 
 .meta-value {
     color: #222;
+}
+
+.category-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.category-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(52, 152, 219, 0.1);
+    color: var(--accent-color);
+    font-size: 0.85rem;
+    text-decoration: none;
+    border: 1px solid rgba(52, 152, 219, 0.2);
+    transition: background 0.2s, color 0.2s;
+}
+
+.category-chip:hover {
+    background: var(--accent-color);
+    color: #fff;
 }
 
 .article-text {

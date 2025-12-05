@@ -23,11 +23,11 @@
                 <span>الموسوعة الشاملة</span>
             </a>
             <div class="nav-links">
-                <a href="hadith.html" class="nav-link active">
+                <a href="index.html?tab=hadith" class="nav-link active">
                     <i data-lucide="book-open-check" class="w-4 h-4"></i>
                     الحديث الشريف
                 </a>
-                <a href="scholars.html" class="nav-link">
+                <a href="index.html?tab=scholars" class="nav-link">
                     <i data-lucide="users" class="w-4 h-4"></i>
                     تراجم العلماء
                 </a>
@@ -79,6 +79,7 @@
         <!-- 2. Metadata & Takhrij Container -->
         <div class="bg-gray-50 p-6 rounded-lg border border-gray-100 mb-8">
             <div id="metaBar" class="meta-bar mb-4"></div>
+            <div id="categoryChips" class="category-chips hidden"></div>
             <div id="takhrijSection" class="hidden pt-4 border-t border-gray-200">
                 <h4 class="font-bold text-gray-500 mb-2 text-sm">التخريج</h4>
                 <p id="viewTakhrij" class="text-gray-600 leading-relaxed text-sm"></p>
@@ -161,6 +162,7 @@
         const loadingSpinner = document.getElementById('loadingSpinner');
         const viewContainer = document.getElementById('viewContainer');
         const metaBar = document.getElementById('metaBar');
+        const categoryChips = document.getElementById('categoryChips');
         const viewText = document.getElementById('viewText');
         const extraSections = document.getElementById('extraSections');
         const viewSharh = document.getElementById('viewSharh');
@@ -291,6 +293,8 @@
                 }
             }
 
+            renderCategories(data.categories);
+
             // 3. Render Sharh
             if (sharhSection && viewSharh) {
                 if (data.sharh) {
@@ -332,6 +336,22 @@
             div.className = 'meta-item';
             div.innerHTML = `<span class="meta-label">${label}:</span> <span class="meta-value ${valueClass}">${value}</span>`;
             metaBar.appendChild(div);
+        }
+
+        function renderCategories(rawCategories) {
+            if (!categoryChips) return;
+            const categories = Array.isArray(rawCategories) ? rawCategories.filter(Boolean) : (rawCategories ? [rawCategories] : []);
+            if (!categories.length) {
+                categoryChips.classList.add('hidden');
+                categoryChips.innerHTML = '';
+                return;
+            }
+            categoryChips.classList.remove('hidden');
+            categoryChips.innerHTML = categories.map(cat => {
+                const label = typeof cat === 'string' ? cat.trim() : String(cat);
+                const href = `index.html?tab=hadith&q=${encodeURIComponent(label)}`;
+                return `<a class="category-chip" href="${href}">${label}</a>`;
+            }).join('');
         }
 
         function renderParagraphs(container, text) {

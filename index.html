@@ -54,26 +54,26 @@
     <div class="nav-container">
       <a href="index.html" class="nav-logo">
         <i data-lucide="library"></i>
-        <span>الموسوعة الشاملة</span>
+        <span class="brand-mark"><span class="brand-slate">موسوعة</span> <span class="brand-accent">بيان</span></span>
       </a>
       <div class="nav-links">
-        <a href="hadith.html" class="nav-link">
+        <a href="index.html?tab=hadith" class="nav-link" data-nav-tab="hadith">
           <i data-lucide="book-open-check" class="w-4 h-4"></i>
           الحديث الشريف
         </a>
-        <a href="scholars.html" class="nav-link">
+        <a href="index.html?tab=scholars" class="nav-link" data-nav-tab="scholars">
           <i data-lucide="users" class="w-4 h-4"></i>
           تراجم العلماء
         </a>
-        <a href="history.html" class="nav-link">
+        <a href="index.html?tab=history" class="nav-link" data-nav-tab="history">
           <i data-lucide="scroll" class="w-4 h-4"></i>
           البداية والنهاية
         </a>
-        <a href="algolia-search.html" class="nav-link">
+        <a href="index.html?tab=fatawa" class="nav-link" data-nav-tab="fatawa">
           <i data-lucide="book" class="w-4 h-4"></i>
           موسوعة الفتاوى
         </a>
-        <a href="firebase-search.html" class="nav-link">
+        <a href="index.html?tab=firebase" class="nav-link" data-nav-tab="firebase">
           <i data-lucide="database" class="w-4 h-4"></i>
           بحث Firebase
         </a>
@@ -82,22 +82,7 @@
   </nav>
 
   <main class="simple-shell">
-    <section class="search-stack">
-      <div class="stack-header">
-        <div>
-          <p class="eyebrow">محرك موحد</p>
-          <h1>ابحث في كل الأقسام من مكان واحد</h1>
-          <p class="lead">نتائج من الحديث، التراجم، التاريخ، الفتاوى وقاعدة Firebase مباشرة.</p>
-        </div>
-        <div class="stack-links">
-          <a href="hadith.html">الحديث</a>
-          <a href="scholars.html">التراجم</a>
-          <a href="history.html">التاريخ</a>
-          <a href="algolia-search.html">الفتاوى</a>
-          <a href="firebase-search.html">بحث Firebase</a>
-        </div>
-      </div>
-
+    <section class="search-stack search-stack--compact">
       <div class="search-tabs">
         <button class="search-tab active" data-target="all">الكل</button>
         <button class="search-tab" data-target="hadith">الحديث</button>
@@ -133,17 +118,6 @@
       <div id="resultsList" class="results-list hidden"></div>
     </section>
 
-    <section class="quick-links">
-      <p>تحتاج واجهة متقدمة لكل قسم؟ اختر من هنا:</p>
-      <div class="quick-links__chips">
-        <a href="hadith.html">واجهة الحديث</a>
-        <a href="scholars.html">واجهة التراجم</a>
-        <a href="history.html">قارئ التاريخ</a>
-        <a href="algolia-search.html">موسوعة الفتاوى</a>
-        <a href="firebase-search.html">بحث Firebase فقط</a>
-      </div>
-    </section>
-
     <section class="curated-grid">
       <div class="curated-section">
         <header>
@@ -158,7 +132,7 @@
       <div class="curated-section">
         <header>
           <h3>مختارات من التراجم</h3>
-          <a href="scholars.html">عرض الكل</a>
+          <a href="index.html?tab=scholars">عرض الكل</a>
         </header>
         <div id="featuredScholars" class="curated-list">
           <p class="curated-empty">جاري تحميل التراجم...</p>
@@ -254,22 +228,38 @@
       firebase: "ابحث في قاعدة التراجم المخصصة..."
     };
 
-    let currentTab = 'all';
+    const urlParams = new URLSearchParams(window.location.search);
+    const paramTab = urlParams.get('tab');
+    const paramQuery = urlParams.get('q') || '';
+
+    let currentTab = PLACEHOLDERS[paramTab] ? paramTab : 'all';
 
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
-      const lastResults = sessionStorage.getItem('lastSearchResults');
-      const lastTerm = sessionStorage.getItem('lastSearchTerm');
-      const lastTab = sessionStorage.getItem('lastActiveTab');
+      const cachedResults = sessionStorage.getItem('lastSearchResults');
+      const cachedTerm = sessionStorage.getItem('lastSearchTerm');
+      const cachedTab = sessionStorage.getItem('lastActiveTab');
 
-      if (lastResults && lastTerm) {
-        searchInput.value = lastTerm;
-        if (lastTab) {
-          setActiveTab(lastTab);
+      if (!paramTab && cachedTab && PLACEHOLDERS[cachedTab]) {
+        currentTab = cachedTab;
+      }
+      setActiveTab(currentTab, { skipURLSync: true });
+
+      if (paramQuery) {
+        searchInput.value = paramQuery;
+        handleSearch(paramQuery, { skipURLSync: true });
+        loadCuratedSections();
+        return;
+      }
+
+      if (cachedResults && cachedTerm) {
+        searchInput.value = cachedTerm;
+        if (cachedTab) {
+          setActiveTab(cachedTab);
         }
 
         try {
-          const results = JSON.parse(lastResults);
+          const results = JSON.parse(cachedResults);
           if (results.length > 0) {
             loadingState.classList.add('hidden');
             noResultsState.classList.add('hidden');
@@ -284,12 +274,51 @@
       loadCuratedSections();
     });
 
-    function setActiveTab(tab) {
+    const navTabLinks = document.querySelectorAll('[data-nav-tab]');
+    navTabLinks.forEach(link => {
+      link.addEventListener('click', (event) => {
+        const targetTab = link.dataset.navTab;
+        if (!targetTab) return;
+        event.preventDefault();
+        const currentTerm = searchInput.value.trim();
+        setActiveTab(targetTab, { skipURLSync: true });
+        if (currentTerm) {
+          handleSearch(currentTerm);
+        } else {
+          searchInput.value = '';
+          syncURLParams(targetTab, '');
+          resultsList.classList.add('hidden');
+          noResultsState.classList.add('hidden');
+          loadingState.classList.add('hidden');
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+    function setActiveTab(tab, { skipURLSync } = {}) {
       searchTabs.forEach(t => t.classList.remove('active'));
       const button = Array.from(searchTabs).find(btn => btn.dataset.target === tab);
       if (button) button.classList.add('active');
       currentTab = tab;
       searchInput.placeholder = PLACEHOLDERS[tab] || PLACEHOLDERS.all;
+      if (!skipURLSync) {
+        syncURLParams(tab);
+      }
+    }
+
+    function syncURLParams(tabValue = currentTab, termValue = searchInput.value.trim()) {
+      const url = new URL(window.location);
+      if (tabValue && tabValue !== 'all') {
+        url.searchParams.set('tab', tabValue);
+      } else {
+        url.searchParams.delete('tab');
+      }
+      if (termValue) {
+        url.searchParams.set('q', termValue);
+      } else {
+        url.searchParams.delete('q');
+      }
+      window.history.replaceState({}, '', url);
     }
 
     searchTabs.forEach(tab => {
@@ -297,6 +326,8 @@
         setActiveTab(tab.dataset.target);
         if (searchInput.value.trim()) {
           handleSearch(searchInput.value.trim());
+        } else {
+          syncURLParams();
         }
       });
     });
@@ -307,11 +338,14 @@
       if (term) handleSearch(term);
     });
 
-    async function handleSearch(term) {
+    async function handleSearch(term, { skipURLSync } = {}) {
       resultsList.innerHTML = '';
       resultsList.classList.add('hidden');
       noResultsState.classList.add('hidden');
       loadingState.classList.remove('hidden');
+      if (!skipURLSync) {
+        syncURLParams(currentTab, term);
+      }
 
       try {
         let results = [];

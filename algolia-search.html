@@ -60,6 +60,36 @@
         color: #94a3b8;
     }
 
+    .fatwa-card__meta {
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    .fatwa-card__chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .fatwa-chip {
+      border: 1px solid rgba(52, 152, 219, 0.3);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+
+    .fatwa-chip:hover {
+      background: var(--accent-color);
+      color: #fff;
+    }
+
     .fatwa-card__cta {
         font-weight: 700;
         color: var(--accent-color);
@@ -168,11 +198,11 @@
         <span>الموسوعة الشاملة</span>
       </a>
       <div class="nav-links">
-        <a href="hadith.html" class="nav-link">
+        <a href="index.html?tab=hadith" class="nav-link">
           <i data-lucide="book-open-check" class="w-4 h-4"></i>
           الحديث الشريف
         </a>
-        <a href="scholars.html" class="nav-link">
+        <a href="index.html?tab=scholars" class="nav-link">
           <i data-lucide="users" class="w-4 h-4"></i>
           تراجم العلماء
         </a>
@@ -361,6 +391,19 @@
       };
     }
 
+    const buildCategoryChips = (values) => {
+      if (!values) return '';
+      const list = Array.isArray(values) ? values : [values];
+      const filtered = list.filter(Boolean);
+      if (!filtered.length) return '';
+      const chips = filtered.map(cat => {
+        const label = typeof cat === 'string' ? cat : String(cat);
+        const href = `algolia-search.html?q=${encodeURIComponent(label)}`;
+        return `<a class="fatwa-chip" href="${href}">${label}</a>`;
+      }).join('');
+      return `<div class="fatwa-card__chips">${chips}</div>`;
+    };
+
     function renderResults(items) {
       resultsList.innerHTML = '';
       items.forEach(item => {
@@ -370,14 +413,24 @@
         article.setAttribute('tabindex', '0');
         const questionHTML = renderRichText(item.question, { wrapParagraphs: false, fallback: 'سؤال بدون عنوان' });
         const snippetHTML = renderRichText(item.snippet, { wrapParagraphs: true, fallback: '<p>لا يوجد نص للجواب.</p>' });
+        const metaBadges = [
+          item.id ? `<span class="badge badge-info">فتوى ${item.id}</span>` : '',
+          item.source ? `<span class="badge badge-warning">${item.source.replace('.html', '')}</span>` : ''
+        ].filter(Boolean).join(' ');
+        const categoryChips = buildCategoryChips(item.raw?.categories);
         article.innerHTML = `
+          <div class="fatwa-card__meta">${metaBadges}</div>
           <h3>${questionHTML}</h3>
           <div class="fatwa-card__snippet">${snippetHTML}</div>
+          ${categoryChips}
           <footer>
-            <span>${item.source ? item.source.replace('.html', '') : ''}</span>
+            <span>${item.source ? `المصدر: ${item.source.replace('.html', '')}` : ''}</span>
             <span class="fatwa-card__cta">انقر لعرض الجواب</span>
           </footer>
         `;
+        article.querySelectorAll('.fatwa-chip').forEach(chip => {
+          chip.addEventListener('click', (e) => e.stopPropagation());
+        });
         article.addEventListener('click', () => navigateToDetail(item.id));
         article.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
