@@ -69,10 +69,6 @@
     </div>
 
     <div id="viewContainer" class="reader-container hidden">
-        <div class="flex justify-end gap-2 mb-6 print:hidden">
-            <button id="decreaseFont" class="btn btn-secondary py-1 px-2 text-xs">A-</button>
-            <button id="increaseFont" class="btn btn-secondary py-1 px-2 text-xs">A+</button>
-        </div>
         <!-- 1. Hadith Text (Top) -->
         <div id="viewText" class="article-text font-bold mb-8"></div>
 
@@ -111,6 +107,18 @@
             <div id="similarStatus" class="similar-status">اضغط على الزر للبحث عن أحاديث تشترك في الكلمات الأساسية.</div>
             <div id="similarList" class="similar-list hidden"></div>
         </section>
+    </div>
+
+    <div class="fab-container reader-fabs print:hidden">
+        <button id="increaseFont" class="fab primary" title="تكبير النص">
+            <i data-lucide="zoom-in" class="w-5 h-5"></i>
+        </button>
+        <button id="decreaseFont" class="fab" title="تصغير النص">
+            <i data-lucide="zoom-out" class="w-5 h-5"></i>
+        </button>
+        <button id="backToResults" class="fab" title="العودة لنتائج البحث">
+            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+        </button>
     </div>
 
     <div id="editContainer" class="modal-overlay">
@@ -185,15 +193,29 @@
         try { if (window.lucide) window.lucide.createIcons(); } catch (e) { }
 
         function updateFontSize() {
+            const baseLineHeight = 1.65;
             if (viewText) {
                 viewText.style.fontSize = `${currentFontSize}px`;
-                viewText.style.lineHeight = `${currentFontSize * 0.13}`;
+                viewText.style.lineHeight = baseLineHeight;
             }
-            if (viewSharh) viewSharh.style.fontSize = `${currentFontSize - 4}px`;
-            if (viewOsoul) viewOsoul.style.fontSize = `${currentFontSize - 4}px`;
+            if (viewSharh) {
+                viewSharh.style.fontSize = `${currentFontSize - 4}px`;
+                viewSharh.style.lineHeight = baseLineHeight;
+            }
+            if (viewOsoul) {
+                viewOsoul.style.fontSize = `${currentFontSize - 4}px`;
+                viewOsoul.style.lineHeight = baseLineHeight;
+            }
         }
         document.getElementById('increaseFont').addEventListener('click', () => { if (currentFontSize < 48) { currentFontSize += 2; updateFontSize(); } });
         document.getElementById('decreaseFont').addEventListener('click', () => { if (currentFontSize > 16) { currentFontSize -= 2; updateFontSize(); } });
+        document.getElementById('backToResults').addEventListener('click', () => {
+            if (document.referrer && document.referrer.includes('index.html')) {
+                history.back();
+            } else {
+                window.location.href = 'index.html?tab=hadith';
+            }
+        });
 
         async function loadData() {
             console.log("Loading data for ID:", docId);

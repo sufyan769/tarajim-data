@@ -149,8 +149,8 @@
             Snippet
         } from 'react-instantsearch';
         import {
-            Search, Menu, Globe, X, ChevronLeft, ChevronRight,
-            BookOpen, ArrowRight, ZoomIn, ZoomOut, Type, Filter, CheckCircle2, Quote, Plus, Library, ArrowDown, AlertTriangle, Sparkles, SpellCheck
+            Search, Menu, Globe, ChevronLeft, ChevronRight,
+            BookOpen, ArrowRight, ZoomIn, Type, Filter, CheckCircle2, Quote, Plus, Library, ArrowDown, AlertTriangle, Sparkles, SpellCheck
         } from 'lucide-react';
 
         // --- Algolia Client Setup ---
@@ -370,6 +370,84 @@
             );
         };
 
+        const MAX_CHUNKS_PER_ENTRY = 160;
+
+        const extractCharacterId = (hit) => {
+            if (!hit) return null;
+            if (hit.character_id) return String(hit.character_id);
+            if (hit.id) return String(hit.id);
+            if (hit.characterId) return String(hit.characterId);
+            if (typeof hit.objectID === 'string') {
+                return hit.objectID.split('_')[0];
+            }
+            return null;
+        };
+
+        const extractChunkNumber = (hit) => {
+            if (!hit) return 1;
+            const chunkValue = hit.chunk ?? (typeof hit.objectID === 'string' ? hit.objectID.split('_')[1] : null);
+            const parsed = parseInt(chunkValue, 10);
+            return Number.isNaN(parsed) ? 1 : parsed;
+        };
+
+        const buildObjectIdFromParts = (characterId, chunkNumber) => `${characterId}_${chunkNumber}`;
+
+        const fetchChunksForCharacter = async (characterId, initialHit = null) => {
+            if (!characterId) return [];
+            const filterCandidates = [
+                `id=${characterId}`,
+                `character_id=${characterId}`,
+                `characterId=${characterId}`
+            ];
+
+            for (const filter of filterCandidates) {
+                try {
+                    const response = await algoliaClient.search([{
+                        indexName: INDEX_NAME,
+                        params: {
+                            query: '',
+                            filters: filter,
+                            hitsPerPage: MAX_CHUNKS_PER_ENTRY,
+                        }
+                    }]);
+                    const hits = response.results?.[0]?.hits || [];
+                    if (hits.length > 0) {
+                        return hits.sort((a, b) => extractChunkNumber(a) - extractChunkNumber(b));
+                    }
+                } catch (error) {
+                    console.error('Error fetching chunks by filter:', filter, error);
+                }
+            }
+
+            // Fallback: sequentially fetch chunks via objectID pattern
+            const index = algoliaClient.initIndex(INDEX_NAME);
+            const sequential = [];
+            let foundAny = false;
+
+            for (let chunk = 0; chunk <= MAX_CHUNKS_PER_ENTRY; chunk++) {
+                const targetId = buildObjectIdFromParts(characterId, chunk);
+                try {
+                    const obj = await index.getObject(targetId);
+                    sequential.push(obj);
+                    foundAny = true;
+                } catch (error) {
+                    if (foundAny) {
+                        // Stop once we've reached the end of contiguous chunks
+                        break;
+                    } else {
+                        // Before finding any chunk, skip missing numbers and keep searching
+                        continue;
+                    }
+                }
+            }
+
+            if (sequential.length === 0 && initialHit) {
+                return [initialHit];
+            }
+
+            return sequential;
+        };
+
         const ReaderView = ({ initialHit, onClose }) => {
             const ZOOM_LEVELS = [24, 28, 32, 36, 42];
             const [zoomIndex, setZoomIndex] = useState(1);
@@ -377,37 +455,38 @@
             const [loading, setLoading] = useState(false);
             const [allChunks, setAllChunks] = useState([initialHit]); // Initialize with initialHit
             const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
+            const [highlightIndex, setHighlightIndex] = useState(null);
             const contentRef = useRef(null);
 
             // Fetch all chunks for this character on mount
             useEffect(() => {
                 const fetchAllChunks = async () => {
-                    if (!initialHit || !initialHit.id) return;
+                    if (!initialHit) return;
 
                     // Show initial content immediately
                     setCurrentHit(initialHit);
 
                     // Then fetch all chunks in background
                     try {
-                        const response = await algoliaClient.search([{
-                            indexName: INDEX_NAME,
-                            params: {
-                                query: '',
-                                filters: `id=${initialHit.id}`,
-                                hitsPerPage: 100
-                            }
-                        }]);
-
-                        const chunks = response.results[0].hits.sort((a, b) => a.chunk - b.chunk);
-                        setAllChunks(chunks);
-
-                        // Find current chunk index
-                        const currentIndex = chunks.findIndex(c => c.chunk === initialHit.chunk);
-                        setCurrentChunkIndex(currentIndex >= 0 ? currentIndex : 0);
+                        const characterId = extractCharacterId(initialHit);
+                        const chunks = await fetchChunksForCharacter(characterId, initialHit);
+                        if (chunks.length > 0) {
+                            const startIndex = chunks.findIndex(c => extractChunkNumber(c) === 1);
+                            const safeStart = startIndex >= 0 ? startIndex : 0;
+                            const highlight = chunks.findIndex(c => c.objectID === initialHit.objectID);
+                            setAllChunks(chunks);
+                            setHighlightIndex(highlight >= 0 ? highlight : safeStart);
+                            setCurrentChunkIndex(safeStart);
+                            setCurrentHit(chunks[safeStart]);
+                        } else {
+                            setAllChunks([initialHit]);
+                            setHighlightIndex(0);
+                            setCurrentChunkIndex(0);
+                        }
                     } catch (error) {
                         console.error('Error fetching chunks:', error);
-                        // If fetch fails, at least we have the initial chunk
                         setAllChunks([initialHit]);
+                        setHighlightIndex(0);
                         setCurrentChunkIndex(0);
                     }
                 };
@@ -415,50 +494,48 @@
                 fetchAllChunks();
             }, [initialHit]);
 
+            const jumpToChunk = (index) => {
+                if (!allChunks[index]) return;
+                setCurrentChunkIndex(index);
+                setCurrentHit(allChunks[index]);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
             const handleZoom = () => {
                 setZoomIndex((prev) => (prev + 1) % ZOOM_LEVELS.length);
             };
 
             const goToNext = async () => {
                 if (currentChunkIndex < allChunks.length - 1) {
-                    // Navigate within loaded chunks
                     const nextIndex = currentChunkIndex + 1;
-                    setCurrentChunkIndex(nextIndex);
-                    setCurrentHit(allChunks[nextIndex]);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    jumpToChunk(nextIndex);
                 } else {
                     // At the end of loaded chunks, try to load next chunk
-                    const currentId = parseInt(currentHit.id);
-                    const currentChunk = parseInt(currentHit.chunk);
+                    const currentIdStr = extractCharacterId(currentHit);
+                    if (!currentIdStr) return;
+                    const currentId = parseInt(currentIdStr, 10);
+                    const currentChunk = extractChunkNumber(currentHit);
                     const nextChunk = currentChunk + 1;
                     const nextObjectID = `${currentId}_${nextChunk}`;
 
                     setLoading(true);
                     try {
                         const nextHit = await algoliaClient.initIndex(INDEX_NAME).getObject(nextObjectID);
-                        setAllChunks([...allChunks, nextHit]);
-                        setCurrentChunkIndex(allChunks.length);
-                        setCurrentHit(nextHit);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        const updated = [...allChunks, nextHit];
+                        setAllChunks(updated);
+                        jumpToChunk(updated.length - 1);
                     } catch (error) {
                         // Current character ended, try next character (id + 1, chunk 1)
                         const nextId = currentId + 1;
                         const nextCharObjectID = `${nextId}_1`;
                         try {
                             const nextCharHit = await algoliaClient.initIndex(INDEX_NAME).getObject(nextCharObjectID);
-                            // Fetch all chunks for the new character
-                            const response = await algoliaClient.search([{
-                                indexName: INDEX_NAME,
-                                params: {
-                                    query: '',
-                                    filters: `id=${nextId}`,
-                                    hitsPerPage: 100
-                                }
-                            }]);
-                            const newChunks = response.results[0].hits.sort((a, b) => a.chunk - b.chunk);
-                            setAllChunks(newChunks.length > 0 ? newChunks : [nextCharHit]);
+                            const newChunks = await fetchChunksForCharacter(String(nextId));
+                            const resolvedChunks = newChunks.length > 0 ? newChunks : [nextCharHit];
+                            setAllChunks(resolvedChunks);
+                            setHighlightIndex(0);
                             setCurrentChunkIndex(0);
-                            setCurrentHit(newChunks.length > 0 ? newChunks[0] : nextCharHit);
+                            setCurrentHit(resolvedChunks[0]);
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                         } catch (err) {
                             // End of content - do nothing
@@ -471,19 +548,18 @@
 
             const goToPrev = async () => {
                 if (currentChunkIndex > 0) {
-                    // Navigate within loaded chunks
                     const prevIndex = currentChunkIndex - 1;
-                    setCurrentChunkIndex(prevIndex);
-                    setCurrentHit(allChunks[prevIndex]);
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    jumpToChunk(prevIndex);
                 } else {
                     // At the first chunk in allChunks array
-                    const currentId = parseInt(currentHit.id);
-                    const currentChunk = parseInt(currentHit.chunk);
+                    const currentIdStr = extractCharacterId(currentHit);
+                    if (!currentIdStr) return;
+                    const currentId = parseInt(currentIdStr, 10);
+                    const currentChunk = extractChunkNumber(currentHit);
 
                     if (currentChunk === 1) {
                         // At chunk 1, try to load previous character
-                        const prevId = currentId - 1;
+                            const prevId = currentId - 1;
                         if (prevId < 1) {
                             // Already at the very first character - do nothing
                             return;
@@ -492,23 +568,11 @@
                         setLoading(true);
                         try {
                             // Search for all chunks of the previous character
-                            const response = await algoliaClient.search([{
-                                indexName: INDEX_NAME,
-                                params: {
-                                    query: '',
-                                    filters: `id=${prevId}`,
-                                    hitsPerPage: 100
-                                }
-                            }]);
-
-                            const prevChunks = response.results[0].hits;
+                            const prevChunks = await fetchChunksForCharacter(String(prevId));
                             if (prevChunks.length > 0) {
-                                // Sort chunks and go to the last one
-                                const sortedChunks = prevChunks.sort((a, b) => a.chunk - b.chunk);
-                                setAllChunks(sortedChunks);
-                                setCurrentChunkIndex(sortedChunks.length - 1);
-                                setCurrentHit(sortedChunks[sortedChunks.length - 1]);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                setAllChunks(prevChunks);
+                                setHighlightIndex(0);
+                                jumpToChunk(prevChunks.length - 1);
                             }
                         } catch (error) {
                             // Previous character not found - do nothing
@@ -523,9 +587,8 @@
                         try {
                             const prevHit = await algoliaClient.initIndex(INDEX_NAME).getObject(prevObjectID);
                             setAllChunks([prevHit, ...allChunks]);
-                            setCurrentChunkIndex(0);
-                            setCurrentHit(prevHit);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            setHighlightIndex((prev) => (prev !== null ? prev + 1 : null));
+                            jumpToChunk(0);
                         } catch (error) {
                             // Previous chunk doesn't exist - do nothing
                         } finally {
@@ -538,8 +601,22 @@
 
 
             const formattedText = useMemo(() => {
-                const rawText = currentHit?.text || currentHit?.text_content || currentHit?.full_intro;
+                if (!currentHit) return null;
+                const chunkNumber = extractChunkNumber(currentHit);
+                const parts = [];
+
+                if (chunkNumber === 1 && currentHit.full_intro) {
+                    parts.push(currentHit.full_intro.trim());
+                }
+                if (currentHit.text_content) {
+                    parts.push(currentHit.text_content.trim());
+                } else if (currentHit.text) {
+                    parts.push(currentHit.text.trim());
+                }
+
+                const rawText = parts.filter(Boolean).join('\n\n');
                 if (!rawText) return null;
+
                 const lines = rawText
                     .replace(/\|\|/g, '\n')
                     .replace(/\.(?=\s|$)/g, '.\n')
@@ -566,12 +643,12 @@
                         <div className="article-header">
                             <h2 className="article-title">{currentHit.name || currentHit.book_title}</h2>
                             <div className="meta-bar">
-                                {currentHit.chunk && allChunks.length > 0 && (
-                                    <div className="meta-item">
-                                        <span className="meta-label">مقطع:</span>
-                                        <span className="meta-value">{currentHit.chunk} من {allChunks.length}</span>
-                                    </div>
-                                )}
+                        {currentHit && allChunks.length > 0 && (
+                            <div className="meta-item">
+                                <span className="meta-label">مقطع:</span>
+                                <span className="meta-value">{extractChunkNumber(currentHit)} من {allChunks.length}</span>
+                            </div>
+                        )}
                             </div>
                         </div>
 
@@ -601,8 +678,8 @@
                         <button onClick={handleZoom} className="fab primary" title="تكبير الخط">
                             <ZoomIn className="w-6 h-6" />
                         </button>
-                        <button onClick={onClose} className="fab" title="إغلاق">
-                            <X className="w-6 h-6" />
+                        <button onClick={onClose} className="fab" title="العودة لنتائج البحث">
+                            <ArrowRight className="w-6 h-6" />
                         </button>
                     </div>
 

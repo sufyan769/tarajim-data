@@ -75,8 +75,6 @@
     </header>
 
     <div class="reader-controls">
-      <button id="decreaseFont" class="btn btn-secondary">A-</button>
-      <button id="increaseFont" class="btn btn-secondary">A+</button>
       <button id="copyBtn" class="btn btn-secondary">
         <i data-lucide="copy" class="w-4 h-4"></i>
         <span>نسخ الجواب</span>
@@ -93,6 +91,18 @@
   <footer class="site-footer">
     <p>&copy; 2025 الموسوعة الشاملة. جميع الحقوق محفوظة.</p>
   </footer>
+
+  <div class="fab-container reader-fabs print:hidden">
+    <button id="increaseFont" class="fab primary" title="تكبير النص">
+      <i data-lucide="zoom-in" class="w-5 h-5"></i>
+    </button>
+    <button id="decreaseFont" class="fab" title="تصغير النص">
+      <i data-lucide="zoom-out" class="w-5 h-5"></i>
+    </button>
+    <button id="backToResults" class="fab" title="العودة لنتائج البحث">
+      <i data-lucide="arrow-right" class="w-5 h-5"></i>
+    </button>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -157,6 +167,7 @@
     const shareBtn = document.getElementById('shareBtn');
     const increaseFontBtn = document.getElementById('increaseFont');
     const decreaseFontBtn = document.getElementById('decreaseFont');
+    const backToResultsBtn = document.getElementById('backToResults');
 
     const params = new URLSearchParams(window.location.search);
     const requestedId = params.get('id');
@@ -185,9 +196,17 @@
       }
     });
 
+    backToResultsBtn.addEventListener('click', () => {
+      if (document.referrer && document.referrer.includes('algolia-search')) {
+        history.back();
+      } else {
+        window.location.href = 'index.html?tab=fatawa';
+      }
+    });
+
     function updateFontSize() {
       fatwaAnswer.style.fontSize = `${currentFontSize}px`;
-      fatwaAnswer.style.lineHeight = `${currentFontSize * 0.065 + 1.8}`;
+      fatwaAnswer.style.lineHeight = 1.65;
     }
 
     async function loadFatwa(id) {
