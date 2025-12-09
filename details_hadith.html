@@ -217,6 +217,58 @@
             }
         });
 
+        /**
+         * Firestore documents sometimes use a shortened numeric ID while Algolia results
+         * include suffixes like "-1". We build a list of safe candidates so lookups can
+         * fall back gracefully before showing the "not found" message.
+         */
+        function buildFlexibleIdCandidates(rawId) {
+            const normalized = (rawId ?? '').toString().trim();
+            if (!normalized) return [];
+            const candidates = new Set([normalized]);
+            if (normalized.includes('-')) {
+                const cleanId = normalized.split('-')[0].trim();
+                if (cleanId) candidates.add(cleanId);
+            }
+            return Array.from(candidates);
+        }
+
+        async function fetchHadithCandidate(candidateId) {
+            const normalized = (candidateId ?? '').toString().trim();
+            if (!normalized) return null;
+
+            const directRef = doc(db, CONFIG.collection, normalized);
+            const directSnap = await getDoc(directRef);
+            if (directSnap.exists()) {
+                return { objectID: directSnap.id, ...directSnap.data() };
+            }
+
+            let q = query(collection(db, CONFIG.collection), where("id", "==", normalized), limit(1));
+            let snap = await getDocs(q);
+            if (!snap.empty) {
+                return { objectID: snap.docs[0].id, ...snap.docs[0].data() };
+            }
+
+            const numericId = Number(normalized);
+            if (!Number.isNaN(numericId)) {
+                q = query(collection(db, CONFIG.collection), where("id", "==", numericId), limit(1));
+                snap = await getDocs(q);
+                if (!snap.empty) {
+                    return { objectID: snap.docs[0].id, ...snap.docs[0].data() };
+                }
+            }
+            return null;
+        }
+
+        async function fetchHadithByFlexibleId(rawId) {
+            const candidates = buildFlexibleIdCandidates(rawId);
+            for (const candidate of candidates) {
+                const data = await fetchHadithCandidate(candidate);
+                if (data) return data;
+            }
+            return null;
+        }
+
         async function loadData() {
             console.log("Loading data for ID:", docId);
             if (!docId) {
@@ -224,33 +276,7 @@
                 return;
             }
             try {
-                let data = null;
-                // 1. Try Direct ID
-                const ref = doc(db, CONFIG.collection, docId);
-                const snap = await getDoc(ref);
-                if (snap.exists()) {
-                    console.log("Found by direct ID");
-                    data = { objectID: snap.id, ...snap.data() };
-                } else {
-                    // 2. Try String ID
-                    console.log("Trying string ID query...");
-                    let q = query(collection(db, CONFIG.collection), where("id", "==", String(docId)), limit(1));
-                    let s = await getDocs(q);
-                    if (!s.empty) {
-                        console.log("Found by string ID");
-                        data = { objectID: s.docs[0].id, ...s.docs[0].data() };
-                    } else {
-                        // 3. Try Number ID
-                        console.log("Trying number ID query...");
-                        q = query(collection(db, CONFIG.collection), where("id", "==", Number(docId)), limit(1));
-                        s = await getDocs(q);
-                        if (!s.empty) {
-                            console.log("Found by number ID");
-                            data = { objectID: s.docs[0].id, ...s.docs[0].data() };
-                        }
-                    }
-                }
-
+                const data = await fetchHadithByFlexibleId(docId);
                 console.log("Data loaded:", data);
 
                 if (!data) {
@@ -489,10 +515,7 @@
         async function fetchSimilarHadithDoc(id) {
             if (!id) return null;
             try {
-                const ref = doc(db, CONFIG.collection, String(id));
-                const snap = await getDoc(ref);
-                if (!snap.exists()) return null;
-                return { objectID: snap.id, ...snap.data() };
+                return await fetchHadithByFlexibleId(id);
             } catch (err) {
                 console.error('Fetch similar doc error:', err);
                 return null;
